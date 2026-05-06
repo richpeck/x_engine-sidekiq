@@ -21,55 +21,28 @@
 require "zeitwerk"
 require "sidekiq"
 
+# = XEngine Sidekiq
+#
+# The Sidekiq extension orchestrates background task execution for the XEngine 
+# ecosystem. It provides the necessary plumbing to connect behavior tree nodes 
+# to asynchronous workers using DragonflyDB/Redis.
+#
+# It utilizes +Zeitwerk+ for lazy-loading and registers itself into the 
+# {XEngine::Core::Registry} to participate in the engine's global boot sequence.
 module XEngine
   module Sidekiq
-    # = Sidekiq Extension Controller
-    #
-    # Manages the registration and configuration of Sidekiq workers.
-    class Extension < Core::Extension
-      
-      identifier :sidekiq
-
-      def self.root
-        Pathname.new(File.expand_path('..', __dir__))
-      end
-
-      # ---
-      # :section: Lifecycle Hooks
-      # ---
-
-      def self.on_register
-        XEngine::Core::Configuration.setting :sidekiq do
-          setting :redis_url,   default: ENV.fetch("XENGINE_REDIS_URL", "redis://localhost:6379/0")
-          setting :concurrency, default: ENV.fetch("XENGINE_SIDEKIQ_CONCURRENCY", 5).to_i
-          setting :queue,       default: ENV.fetch("XENGINE_SIDEKIQ_QUEUE", "default")
-          setting :retry_limit, default: ENV.fetch("XENGINE_SIDEKIQ_RETRY", 3).to_i
-        end
-      end
-
-      def self.on_boot
-        return unless defined?(::Sidekiq)
-
-        ::Sidekiq.configure_server { |c| c.redis = { url: XEngine.configuration.sidekiq.redis_url } }
-        ::Sidekiq.configure_client { |c| c.redis = { url: XEngine.configuration.sidekiq.redis_url } }
-
-        if defined?(XEngine::Core::CLI)
-          # WE USE A BLOCK/PROC HERE TO PREVENT IMMEDIATE RESOLUTION.
-          # This allows Zeitwerk (at the bottom) to finish setting up
-          # before we actually try to find the Command class.
-          XEngine::Core::CLI.add_command "sidekiq", XEngine::Sidekiq::CLI::Commands::Sidekiq
-        end
-      end
+    # :stopdoc:
+    # Initialize Zeitwerk to handle constant loading within the XEngine namespace.
+    @loader ||= Zeitwerk::Loader.for_gem_extension(XEngine).tap do |l|
+      l.inflector.inflect("cli" => "CLI")
+      l.setup
     end
+    # :startdoc:
   end
 end
 
-# ---
-# :section: Autoloader Setup (Bottom Load)
-# ---
-
-# :stopdoc:
-loader = Zeitwerk::Loader.for_gem_extension(XEngine)
-loader.inflector.inflect("cli" => "CLI")
-loader.setup
-# :startdoc:
+# Register the extension with the Core Registry only if not already present.
+# This prevents Dry::Container::Error during duplicate load attempts.
+unless XEngine::Core::Registry.container.key?("extensions.sidekiq")
+  XEngine::Core::Registry.register_extension(:sidekiq, XEngine::Sidekiq::Extension)
+end
