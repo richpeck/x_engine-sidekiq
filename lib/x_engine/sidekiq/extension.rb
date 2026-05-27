@@ -71,10 +71,6 @@ module XEngine
         ::Sidekiq.configure_server { |c| c.redis = { url: url } }
         ::Sidekiq.configure_client { |c| c.redis = { url: url } }
 
-        # Register CLI commands if the Core CLI is present
-        if defined?(XEngine::Core::CLI)
-          XEngine::Core::CLI.add_command "sidekiq", XEngine::Sidekiq::CLI::Commands::Sidekiq
-        end
       end
     end
   end

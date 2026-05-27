@@ -17,67 +17,78 @@
 ################################################################
 # :startdoc:
 
+# frozen_string_literal: true
+
+require "dry/cli"
+
 module XEngine
   module Sidekiq
     module CLI
       module Commands
-        # = XEngine Sidekiq CLI
+        # = XEngine Sidekiq CLI Process Launcher
         #
-        # Provides a wrapper around the +sidekiq+ binary to ensure the worker boots
-        # with the correct environment, concurrency, and queue configuration 
-        # defined in the +XEngine+ configuration registry.
+        # A process-level management ingress command that acts as an orchestrated wrapper around 
+        # the native +sidekiq+ subsystem binary. This wrapper ensures background worker loops 
+        # initialize within the correct context mapping, execution thread concurrency, 
+        # and queue configurations prioritized by the host application's central configuration profile.
         #
-        # The +Sidekiq+ command class handles the transition from the 
-        # XEngine Ruby environment to the Sidekiq background process.
-        class Sidekiq < Dry::CLI::Command
+        # ==== Lifecycle & Process Handover
+        #
+        # To preserve operational performance and integrity, the implementation relies on a native 
+        # Kernel +exec+ handover strategy. This terminates the parent XEngine launcher process and 
+        # replaces it directly within the kernel process space with Sidekiq. 
+        #
+        # This architecture ensures all standard operating system process signals (e.g., +SIGTERM+, 
+        # +SIGINT+, +SIGTSTP+) travel directly to Sidekiq's process manager for graceful termination management.
+        class Sidekiq < ::Dry::CLI::Command
           desc "Start the Sidekiq worker process for XEngine"
 
           # ---
-          # :section: Options
+          # :section: Command Option Directives
           # ---
 
-          # RPECK 03/05/2026 - Note: We avoid calling XEngine.config here 
-          # to prevent boot-time race conditions. Defaults are handled in #call.
+          # RPECK 03/05/2026 - Configuration options are declared with scalar fallbacks 
+          # to prevent early configuration lookup race conditions during boot-up compilation sweeps.
 
           option :concurrency, 
                  type: :integer, 
-                 desc: "Number of threads (default: from XEngine config)"
+                 desc: "Number of concurrent processing threads (defaults to XEngine config)"
 
           option :environment, 
                  type: :string,  
                  default: ENV.fetch("RAILS_ENV", "development"), 
-                 desc: "Execution environment (development, production, etc)"
+                 desc: "The active environment target context (development, production, etc)"
 
           option :require_path,
                  type: :string,
                  default: "./config/boot.rb",
-                 desc: "The path to the Ruby file to require before starting"
+                 desc: "The absolute or relative path to the Ruby script required prior to execution initialization"
 
           # ---
-          # :section: Execution
+          # :section: Process Lifecycle Execution
           # ---
 
-          # Builds and executes the Sidekiq shell command.
+          # Evaluates the contextual configuration environment, structures execution parameters, 
+          # and performs a kernel process switch into Sidekiq.
           #
-          # This method uses +exec+ to replace the current process with the 
-          # Sidekiq worker, ensuring signal handling (TERM, INT) is passed
-          # directly to the background processor.
+          # ==== Parameters
+          # * +concurrency+ - Max processing thread allocation count (Integer). Pass +nil+ to fallback to framework configuration.
+          # * +environment+ - Execution context tracking variable (String).
+          # * +require_path+ - File target to rehydrate runtime application structures (String).
+          # * +_options+ - Splat parameter container mapping stray user-supplied flags.
           #
-          # === Parameters:
-          # [concurrency] The thread count (Integer).
-          # [environment] The runtime environment (String).
-          # [require_path] Path to the boot file (String).
-          def call(concurrency: nil, environment: "development", require_path: "./config/boot.rb", **)
-            # Lazy load defaults from the configuration registry
+          # [Returns] Does not return. Kernel +exec+ entirely replaces the execution path of the current process loop on success.
+          def call(concurrency: nil, environment: "development", require_path: "./config/boot.rb", **_options)
+            # Lazy load infrastructure setting blocks from the active core environment profile
             sidekiq_config = XEngine.configuration.sidekiq
             
             concurrency ||= sidekiq_config.concurrency
             
-            # RPECK 03/05/2026 - Map the queue setting to Sidekiq flags
+            # Map structural array values into sequential CLI execution arguments
             queues = Array(sidekiq_config.queue)
             queue_args = queues.map { |q| "-q #{q}" }
 
-            # Build the shell command array for safer execution
+            # Compile array argument vectors for safe kernel process pipeline isolation
             cmd = [
               "bundle", "exec", "sidekiq",
               "-e", environment,
@@ -90,11 +101,17 @@ module XEngine
             puts "=> Concurrency: #{concurrency}"
             puts "=> Environment: #{environment}"
             
-            # Use exec with array arguments to avoid shell injection
+            # Invoke low-level system execution substitution to bypass shell string injection vulnerabilities
             exec(*cmd)
           end
         end
       end
     end
   end
+end
+
+# --- THE CLI CORE REGISTRATION ---
+# The command explicitly mounts itself straight onto the master routing table
+if defined?(XEngine::Core::CLI)
+  XEngine::Core::CLI.register "sidekiq", XEngine::Sidekiq::CLI::Commands::Sidekiq
 end
