@@ -40,6 +40,7 @@ module XEngine
         #
         # This architecture ensures all standard operating system process signals (e.g., +SIGTERM+, 
         # +SIGINT+, +SIGTSTP+) travel directly to Sidekiq's process manager for graceful termination management.
+        #
         class Sidekiq < ::Dry::CLI::Command
           desc "Start the Sidekiq worker process for XEngine"
 
@@ -47,21 +48,18 @@ module XEngine
           # :section: Command Option Directives
           # ---
 
-          # RPECK 03/05/2026 - Configuration options are declared with scalar fallbacks 
-          # to prevent early configuration lookup race conditions during boot-up compilation sweeps.
-
           option :concurrency, 
                  type: :integer, 
-                 desc: "Number of concurrent processing threads (defaults to XEngine config)"
+                 desc: "Number of concurrent processing threads (defaults to XEngine provider configuration)"
 
           option :environment, 
                  type: :string,  
-                 default: ENV.fetch("RAILS_ENV", "development"), 
+                 default: ENV.fetch("XENGINE_ENV", "development"), 
                  desc: "The active environment target context (development, production, etc)"
 
           option :require_path,
                  type: :string,
-                 default: "./config/boot.rb",
+                 default: "./lib/x_engine.rb",
                  desc: "The absolute or relative path to the Ruby script required prior to execution initialization"
 
           # ---
@@ -72,28 +70,36 @@ module XEngine
           # and performs a kernel process switch into Sidekiq.
           #
           # ==== Parameters
-          # * +concurrency+ - Max processing thread allocation count (Integer). Pass +nil+ to fallback to framework configuration.
-          # * +environment+ - Execution context tracking variable (String).
+          # * +concurrency+  - Max processing thread allocation count (Integer).
+          # * +environment+  - Execution context tracking variable (String).
           # * +require_path+ - File target to rehydrate runtime application structures (String).
-          # * +_options+ - Splat parameter container mapping stray user-supplied flags.
+          # * +_options+     - Splat parameter container mapping stray user-supplied flags.
           #
           # [Returns] Does not return. Kernel +exec+ entirely replaces the execution path of the current process loop on success.
-          def call(concurrency: nil, environment: "development", require_path: "./config/boot.rb", **_options)
-            # Lazy load infrastructure setting blocks from the active core environment profile
-            sidekiq_config = XEngine.configuration.sidekiq
+          def call(concurrency: nil, environment: "development", require_path: "./lib/x_engine.rb", **_options)
+            # DYNAMIC RESOLUTION:
+            # Query the container directly for the registered "sidekiq" orchestrator client component.
+            # This triggers all native late-binding host initializers automatically.
+            sidekiq_client = XEngine::Application.key?("sidekiq") ? XEngine::Application["sidekiq"] : nil
             
-            concurrency ||= sidekiq_config.concurrency
+            # Extract values out of the dry-configurable client block schema if available
+            if sidekiq_client&.respond_to?(:config)
+              concurrency ||= sidekiq_client.config.pool
+              queues        = Array(sidekiq_client.config.queues)
+            else
+              concurrency ||= 5
+              queues        = ["default"]
+            end
             
-            # Map structural array values into sequential CLI execution arguments
-            queues = Array(sidekiq_config.queue)
-            queue_args = queues.map { |q| "-q #{q}" }
+            # Map structural array values into sequential CLI argument pairs safely
+            queue_args = queues.flat_map { |q| ["-q", q.to_s] }
 
-            # Compile array argument vectors for safe kernel process pipeline isolation
+            # Compile absolute array argument vectors for safe kernel process pipeline isolation
             cmd = [
               "bundle", "exec", "sidekiq",
-              "-e", environment,
+              "-e", environment.to_s,
               "-c", concurrency.to_s,
-              "-r", require_path
+              "-r", require_path.to_s
             ] + queue_args
 
             puts "=> XEngine Sidekiq starting..."
@@ -112,6 +118,7 @@ end
 
 # --- THE CLI CORE REGISTRATION ---
 # The command explicitly mounts itself straight onto the master routing table
-if defined?(XEngine::Core::CLI)
-  XEngine::Core::CLI.register "sidekiq", XEngine::Sidekiq::CLI::Commands::Sidekiq
+if defined?(XEngine::Application) && XEngine::Application.key?(:cli)
+  puts "test"
+  XEngine::Application[:cli].register("sidekiq", XEngine::Sidekiq::CLI::Commands::Sidekiq)
 end

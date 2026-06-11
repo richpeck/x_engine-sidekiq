@@ -26,7 +26,7 @@ class CreateXEngineSidekiqJobs < XEngine::Core::Database::Migration
     # table_name and table_options are inherited from the base Migration class
     create_table table_name, **table_options do |t|
       # Link to the Core JobRecord
-      t.uuid :job_record_id, null: false
+      t.string :job_record_id, null: false
       
       # Sidekiq-specific identifiers
       t.string :jid,           null: false
