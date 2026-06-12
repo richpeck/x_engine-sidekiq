@@ -119,6 +119,5 @@ end
 # --- THE CLI CORE REGISTRATION ---
 # The command explicitly mounts itself straight onto the master routing table
 if defined?(XEngine::Application) && XEngine::Application.key?(:cli)
-  puts "test"
   XEngine::Application[:cli].register("sidekiq", XEngine::Sidekiq::CLI::Commands::Sidekiq)
 end

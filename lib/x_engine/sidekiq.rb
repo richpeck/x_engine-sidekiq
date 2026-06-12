@@ -21,8 +21,6 @@
 require "zeitwerk"
 require "dry/system"
 
-puts 'tester2'
-
 # = XEngine Sidekiq Extension
 #
 # Integrates Sidekiq background job processing into the XEngine ecosystem.
