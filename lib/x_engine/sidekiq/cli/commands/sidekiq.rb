@@ -41,7 +41,7 @@ module XEngine
         # This architecture ensures all standard operating system process signals (e.g., +SIGTERM+, 
         # +SIGINT+, +SIGTSTP+) travel directly to Sidekiq's process manager for graceful termination management.
         #
-        class Sidekiq < ::Dry::CLI::Command
+        class Sidekiq < XEngine::Core::CLI::Command
           desc "Start the Sidekiq worker process for XEngine"
 
           # ---
@@ -114,10 +114,4 @@ module XEngine
       end
     end
   end
-end
-
-# --- THE CLI CORE REGISTRATION ---
-# The command explicitly mounts itself straight onto the master routing table
-if defined?(XEngine::Application) && XEngine::Application.key?(:cli)
-  XEngine::Application[:cli].register("sidekiq", XEngine::Sidekiq::CLI::Commands::Sidekiq)
 end
