@@ -26,42 +26,43 @@ require "sidekiq"
 # asynchronous worker framework within the +XEngine+ master container matrix.
 #
 Dry::System.register_provider_source(:sidekiq, group: :x_engine) do
-  
+
   # Prepares the Sidekiq background framework dependencies within the master container.
   #
-  # === Lifecycle Operations
-  # 1. Synchronizes safe boot checks to verify core CLI infrastructure maps are initialized.
-  # 2. Injects the extension gem's library directory paths into the application component scanner.
-  # 3. Assigns the automatically managed configuration client interface directly to the container registry slot.
+  # This lifecycle phase ensures the local database migration paths are registered
+  # with the engine's database provider and defines the factory for the main
+  # Sidekiq client component.
   #
   # @return [void]
   prepare do
-    extension_lib_dir = File.expand_path("../..", __dir__)
+    gem_root          = XEngine::Sidekiq::ROOT
+    extension_lib_dir = File.join(gem_root, "lib")
 
-    if target_container.providers.key?(:cli)
-      target_container.start(:cli)
+    # 1. Register the structural migration path belonging to this extension
+    if target_container.providers.key?(:database)
+      migration_path = File.expand_path("x_engine/sidekiq/db/migrate", extension_lib_dir)
+      target_container["database"].register_migration_path(migration_path)
     end
 
-    # Let dry-system completely replace Zeitwerk. It will handle the directory 
-    # monitoring and dynamic file resolution by itself.
-    target_container.config.component_dirs.add(extension_lib_dir) do |dir|
-      dir.namespaces.add "x_engine", key: nil
-      dir.auto_register = true
+    # 2. Register the sidekiq client factory.
+    # The client is resolved lazily via XEngine::Sidekiq::Client, which is 
+    # discovered and autoloaded by the engine's Zeitwerk instance.
+    register("sidekiq") do
+      # Enforce early CLI setup if present to safely prepare prerequisite variables
+      target_container.start(:cli) if target_container.providers.key?(:cli)
+      XEngine::Sidekiq::Client.new
     end
-
-    register("sidekiq") { target_container["x_engine.sidekiq.client"] }
   end
 
   # Activates the Sidekiq provider and wires subsystem database dependencies.
   #
-  # === System Automations Executed
-  # 1. *Connection Binding* - Maps server and client middleware configurations to active Redis connection strings.
-  # 2. *Extension Migration Injection* - Pushes engine-specific background schema updates directly onto the orchestrator layer.
+  # Binds server and client middleware configurations to active Redis connection strings,
+  # manages namespace eager loading, and outputs system telemetry.
   #
   # @return [void]
   start do
-    logger = target_container["logger"]
     client = target_container["sidekiq"]
+    logger = target_container["logger"]
 
     # Configure global redis/connection pooling for Sidekiq worker states 
     # out of the dry-configurable client instance settings map.
@@ -73,20 +74,11 @@ Dry::System.register_provider_source(:sidekiq, group: :x_engine) do
       config.redis = { url: client.config.redis_url }
     end
 
-    # Tie cleanly into the dry-system finalization pipeline:
-    # If the root application container has a configured Zeitwerk autoloader,
-    # instruct it to upfront load your sidekiq CLI namespace right now.
+    # If the root application container has an active autoloader, eager load the CLI namespace
     if target_container.respond_to?(:autoloader) && target_container.autoloader
       target_container.autoloader.eager_load_namespace(XEngine::Sidekiq::CLI)
     end
 
-    # == Dynamic Extension Migration Injection
-    if target_container.providers.key?(:database)
-      migration_path = File.expand_path("../sidekiq/db/migrate", __dir__)
-      target_container["database"].register_migration_path(migration_path)
-    end
-
-    # == System Telemetry Output
     logger&.info("Sidekiq background subsystem initialized against target worker pool.")
   end
 end
