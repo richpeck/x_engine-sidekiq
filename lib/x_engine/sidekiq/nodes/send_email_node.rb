@@ -1,6 +1,6 @@
 module XEngine
   module SMTP
-    class SendEmailNode < XEngine::Core::Node
+    class SendEmailNode < XEngine::Core::Nodes::Base
       # DSL Inputs
       input :recipient_email
       input :subject
