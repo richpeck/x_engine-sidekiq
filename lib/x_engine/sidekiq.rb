@@ -61,7 +61,7 @@ module XEngine
       # Exclude internal provider definitions and component metadata files from Zeitwerk
       app.autoloader.ignore(
         File.join(ROOT, "lib/x_engine/providers"),
-        File.join(ROOT, "lib/x_engine/sidekiq/version.rb")
+        File.join(ROOT, "lib/x_engine/sidekiq/version.rb"),
         File.join(ROOT, "lib/x_engine/sidekiq/db")
       )
     end
