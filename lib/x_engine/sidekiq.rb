@@ -62,6 +62,7 @@ module XEngine
       app.autoloader.ignore(
         File.join(ROOT, "lib/x_engine/providers"),
         File.join(ROOT, "lib/x_engine/sidekiq/version.rb")
+        File.join(ROOT, "lib/x_engine/sidekiq/db")
       )
     end
   end
