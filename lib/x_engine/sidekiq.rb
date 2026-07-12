@@ -18,31 +18,51 @@
 
 # frozen_string_literal: true
 
-require "zeitwerk"
 require "dry/system"
 
-# = XEngine Sidekiq Extension
+# = XEngine Framework Extension Suite
 #
-# Integrates Sidekiq background job processing into the XEngine ecosystem.
-# Coordinates internal autoloader path structures and configures distributed 
-# component provider group matrices.
+# Base namespace governing plugin layers and specialized component providers 
+# stacked atop the core runtime platform.
 #
 module XEngine
+
+  # = Sidekiq Extension Layer
+  #
+  # Integrates Sidekiq background job processing, queue monitoring topologies,
+  # and distributed worker systems seamlessly into the core system graph.
+  #
   module Sidekiq
-    # Dedicated, high-performance Zeitwerk loader for the Sidekiq gem extension layer.
-    # 
-    # @return [Zeitwerk::Loader] The active tracking loader instance.
+
+    # Absolute path to the gem's root directory.
+    # @return [String]
+    ROOT = File.expand_path("../..", __dir__).freeze
+
+    # Configures the engine container to recognize this extension's directory,
+    # passes extension-specific acronym rules down to the global accumulation matrix,
+    # and optimizes the autoloader layout.
     #
-    LOADER = Zeitwerk::Loader.for_gem_extension(XEngine).tap do |loader|
-      # Enforce uppercase acronym conversion rules for terminal CLI boundaries
-      loader.inflector.inflect("cli" => "CLI")
-      
-      # CRITICAL: Bypasses the providers folder so Zeitwerk doesn't mistake 
-      # its contents for continuous Ruby constant namespaces.
-      loader.ignore("#{__dir__}/providers")
-      
-      # Commit changes and establish the tracking system maps
-      loader.setup
+    # @param app [Dry::System::Container] The host framework container instance.
+    # @return [void]
+    #
+    # === Example
+    #   XEngine::Sidekiq.setup(XEngine::Application)
+    #
+    def self.setup(app)
+      # Pushes extension-specific acronyms into the centralized application matrix.
+      # These will be compiled safely via your custom inflector right before configuration.
+      app.autoloader.inflector.inflect(
+        "cli" => "CLI"
+      )
+
+      # Register the extension lib directory into the shared autoloader direct tracking loop.
+      app.autoloader.push_dir(File.join(ROOT, "lib"))
+
+      # Exclude internal provider definitions and component metadata files from Zeitwerk
+      app.autoloader.ignore(
+        File.join(ROOT, "lib/x_engine/providers"),
+        File.join(ROOT, "lib/x_engine/sidekiq/version.rb")
+      )
     end
   end
 end
@@ -50,16 +70,12 @@ end
 # --- SYSTEM PROVIDER GROUP MATRIX CONFIGURATION ---
 # Inform the container system that this extension group's external providers are 
 # located inside our isolated local +./providers+ folder.
-#
-# This implicitly maps the file located at <tt>lib/x_engine/providers/sidekiq.rb</tt> 
-# containing the central +Dry::System.register_provider_source+ configuration schemas.
-#
 Dry::System.register_provider_sources(File.join(__dir__, "providers"))
 
 # --- AUTOMATIC APPLICATION ADAPTER BINDING ---
 # Automatically mounts the background processor provider component onto the running 
 # framework master container tree if it has been evaluated into active process memory.
-#
 if defined?(XEngine::Application)
+  XEngine::Sidekiq.setup(XEngine::Application)
   XEngine::Application.register_provider(:sidekiq, from: :x_engine)
 end
