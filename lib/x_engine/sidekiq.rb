@@ -64,6 +64,11 @@ module XEngine
         File.join(ROOT, "lib/x_engine/sidekiq/version.rb"),
         File.join(ROOT, "lib/x_engine/sidekiq/db")
       )
+
+      # Collapse nested data mapping models into flat namespaces
+      app.autoloader.collapse(
+        File.join(ROOT, "lib/x_engine/sidekiq/models")
+      )
     end
   end
 end
