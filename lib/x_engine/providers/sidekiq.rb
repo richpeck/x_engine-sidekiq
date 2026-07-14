@@ -29,9 +29,8 @@ Dry::System.register_provider_source(:sidekiq, group: :x_engine) do
 
   # Prepares the Sidekiq background framework dependencies within the master container.
   #
-  # This lifecycle phase ensures the local database migration paths are registered
-  # with the engine's database provider and defines the factory for the main
-  # Sidekiq client component.
+  # This lifecycle phase ensures local database migration paths and CLI commands are registered
+  # with their respective target framework coordinators during compilation.
   #
   # @return [void]
   prepare do
@@ -44,12 +43,18 @@ Dry::System.register_provider_source(:sidekiq, group: :x_engine) do
       target_container["database"].register_migration_path(migration_path)
     end
 
-    # 2. Register the sidekiq client factory.
+    # 2. Register Sidekiq commands directly onto the core CLI coordinator
+    if target_container.providers.key?(:cli)
+      target_container.prepare(:cli)
+      
+      # Register the command cleanly onto our central CLI registry instance
+      target_container["cli"].register "sidekiq", XEngine::Sidekiq::CLI::Commands::Sidekiq
+    end
+
+    # 3. Register the sidekiq client factory.
     # The client is resolved lazily via XEngine::Sidekiq::Client, which is 
     # discovered and autoloaded by the engine's Zeitwerk instance.
     register("sidekiq") do
-      # Enforce early CLI setup if present to safely prepare prerequisite variables
-      target_container.start(:cli) if target_container.providers.key?(:cli)
       XEngine::Sidekiq::Client.new
     end
   end
@@ -57,7 +62,7 @@ Dry::System.register_provider_source(:sidekiq, group: :x_engine) do
   # Activates the Sidekiq provider and wires subsystem database dependencies.
   #
   # Binds server and client middleware configurations to active Redis connection strings,
-  # manages namespace eager loading, and outputs system telemetry.
+  # and outputs system telemetry.
   #
   # @return [void]
   start do
@@ -72,11 +77,6 @@ Dry::System.register_provider_source(:sidekiq, group: :x_engine) do
 
     ::Sidekiq.configure_client do |config|
       config.redis = { url: client.config.redis_url }
-    end
-
-    # If the root application container has an active autoloader, eager load the CLI namespace
-    if target_container.respond_to?(:autoloader) && target_container.autoloader
-      target_container.autoloader.eager_load_namespace(XEngine::Sidekiq::CLI)
     end
 
     logger&.info("Sidekiq background subsystem initialized against target worker pool.")
