@@ -15,30 +15,26 @@
 ################################################################
 ################################################################
 
+# frozen_string_literal: true
+
+# = Sidekiq Jobs Database Provisioner
 #
 # Generates the framework metadata tracking table mapping internal asynchronous 
-# worker lifetimes, job identifiers, error traces, and configuration parameters.
-#
-# == Database Resource Configuration
-# * *Namespace:* +:sidekiq+
-# * *Resource:* +:job+
+# worker lifetimes, job identifiers, error traces, and configuration parameters (+XEngine::Sidekiq::Job+).
 #
 # == Schema Layout Matrix
-# [job_record_id]  Foreign key reference pointing to the Core master job tracking node. Map utilizes <tt>uuid</tt> strategy.
-# [jid]            The unique Sidekiq-generated background payload alphanumeric job token.
-# [queue]          Target execution pool partition indicator identifier string.
-# [status]         Active processing lifecycle step string enum tracking current payload state.
-# [retry_count]    Running iteration metric tracking worker exception occurrences.
-# [last_error]     Isolated text storage detailing the backtrace or message of the latest execution failure.
-# [meta]           Open JSON hash payload map allocating dynamic execution parameter options.
+# [id]            System-managed unique primary key handling distributed lookups safely using a native +UUID+ format.
+# [job_record_id] Foreign key reference pointing to the Core master job tracking node. Map utilizes <tt>uuid</tt> strategy.
+# [jid]           The unique Sidekiq-generated background payload alphanumeric job token.
+# [queue]         Target execution pool partition indicator identifier string.
+# [status]        Active processing lifecycle step string enum tracking current payload state.
+# [retry_count]   Running iteration metric tracking worker exception occurrences.
+# [last_error]    Isolated text storage detailing the backtrace or message of the latest execution failure.
+# [meta]          Open JSON hash payload map allocating dynamic execution parameter options.
+# [created_at]    Standard ActiveRecord timestamp.
+# [updated_at]    Standard ActiveRecord timestamp.
 #
-# == Architectural Guardrails
-# * *Cross-Database Polymorphism:* Dynamically shifts between SQLite's primitive text storage and PostgreSQL's optimized binary JSONB format.
-# * *Adaptive GIN Indexing:* Safely registers the GIN performance index only when a true PostgreSQL JSONB connection layer is present.
 class CreateXEngineSidekiqJobs < XEngine::Core::Database::Migration
-
-  # Enforce structural namespacing parameters for the job metadata layout target
-  set_resource :sidekiq, :job
 
   # Executes schema generation transformations on the target database engine layer.
   #
@@ -58,7 +54,7 @@ class CreateXEngineSidekiqJobs < XEngine::Core::Database::Migration
       t.string :jid, 
                null: false, 
                index: { unique: true, name: "idx_xe_sidekiq_jobs_jid_uniq" }
-               
+             
       t.string :queue, null: false, default: "default"
       
       # 3. Lifecycle Step State (With standard lookup index)
@@ -89,5 +85,13 @@ class CreateXEngineSidekiqJobs < XEngine::Core::Database::Migration
     end
   end
 
+  private
+
+  # Resolves the database target table directly from the Job model class.
+  #
+  # @return [String]
+  def table_name
+    @table_name ||= XEngine::Sidekiq::Job.table_name
+  end
+
 end
-# :startdoc:

@@ -38,6 +38,29 @@ module XEngine
     # @return [String]
     ROOT = File.expand_path("../..", __dir__).freeze
 
+    # Defines the localized database table name prefix for models nested inside
+    # the +XEngine::Sidekiq+ namespace.
+    #
+    # === ActiveRecord Namespace Inheritance
+    # When ActiveRecord resolves table names for nested models (e.g. +XEngine::Sidekiq::Job+),
+    # it traverses +module_parents+ from root to leaf (+[XEngine, XEngine::Sidekiq]+) and 
+    # concatenates all returned +table_name_prefix+ strings in sequence.
+    #
+    # * Parent (+XEngine.table_name_prefix+): +"xinventory_"+
+    # * Child (+XEngine::Sidekiq.table_name_prefix+): +"sidekiq_"+
+    # * Combined Prefix: +"xinventory_sidekiq_"+
+    # * Target Table Name: +"xinventory_sidekiq_jobs"+
+    #
+    # Do NOT include parent prefixes (e.g. +"xinventory_"+) inside this method string,
+    # as ActiveRecord will prepend parent module prefixes automatically during hierarchy traversal.
+    #
+    # === Returns
+    # * +String+ - The module-specific suffix prefix ("sidekiq_").
+    #
+    def self.table_name_prefix
+      "sidekiq_"
+    end
+
     # Configures the engine container to recognize this extension's directory,
     # passes extension-specific acronym rules down to the global accumulation matrix,
     # and optimizes the autoloader layout.
