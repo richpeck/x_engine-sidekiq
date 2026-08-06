@@ -17,6 +17,7 @@
 # frozen_string_literal: true
 
 require "dry-configurable"
+require "sidekiq"
 
 module XEngine
   module Sidekiq
@@ -79,6 +80,14 @@ module XEngine
         else
           super
         end
+      end
+
+      # Yields a Redis connection handle directly from Sidekiq's connection pool.
+      #
+      # @yieldparam redis [RedisClient, Redis] The active connection handle borrowed from Sidekiq's pool.
+      # @return [Object] Result of the block evaluation.
+      def redis(&block)
+        ::Sidekiq.redis(&block)
       end
     end
   end
