@@ -59,7 +59,7 @@ module XEngine
       # Monitored message processing queues ordered by scanning priorities.
       # Defaults to <tt>["default"]</tt>.
       # @return [Array<String>]
-      setting :queues, default: [ENV.fetch("XENGINE_SIDEKIQ_QUEUE", "default")]
+      setting :queues, default: ENV.fetch("XENGINE_SIDEKIQ_QUEUE", "default").split(",").map(&:strip)
 
       # @!attribute [rw] retry_limit
       # Number of permitted delivery attempts before job relocation into Dead Letter Queues.
