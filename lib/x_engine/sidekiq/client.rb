@@ -36,6 +36,7 @@ module XEngine
     #   XEngine::Application["sidekiq"].config do |config|
     #     config.redis_url = "redis://127.0.0.1:6379/4"
     #     config.pool      = 15
+    #     config.queues    = ["default", "bulk_imports"]
     #   end
     #
     class Client
@@ -57,7 +58,12 @@ module XEngine
 
       # @!attribute [rw] queues
       # Monitored message processing queues ordered by scanning priorities.
+      # Parsed from a comma-delimited environment string into sanitized string tokens.
       # Defaults to <tt>["default"]</tt>.
+      #
+      # === Environment Format
+      #   XENGINE_SIDEKIQ_QUEUE="default, bulk_imports, high_priority"
+      #
       # @return [Array<String>]
       setting :queues, default: ENV.fetch("XENGINE_SIDEKIQ_QUEUE", "default").split(",").map(&:strip)
 
